@@ -112,8 +112,8 @@ Please use Lagrange.Core responsibly and in accordance with the law.
 | [/send_private_msg]        |    🟢    |
 | [/send_group_msg]          |    🟢    |
 | [/send_msg]                |    🟢    |
-| [/delete_msg]              |    🔴    |
-| [/get_msg]                 |    🔴    |
+| [/delete_msg]              |    🟡    |
+| [/get_msg]                 |    🟢    |
 | [/get_forward_msg]         |    🟢    |
 | ~~[/send_like]~~           |    🔴    |
 | [/set_group_kick]          |    🟢    |
@@ -197,10 +197,10 @@ Please use Lagrange.Core responsibly and in accordance with the law.
 | Message  | [Private Message]              |    🔴    |
 | Message  | [Group Message]                |    🟢    |
 | Notice   | [Group File Upload]            |    🔴    |
-| Notice   | [Group Admin Change]           |    🔴    |
+| Notice   | [Group Admin Change]           |    🟢    |
 | Notice   | [Group Member Decrease]        |    🟢    |
 | Notice   | [Group Member Increase]        |    🟢    |
-| Notice   | [Group Mute]                   |    🔴    |
+| Notice   | [Group Mute]                   |    🟢    |
 | Notice   | [Friend Add]                   |    🔴    |
 | Notice   | [Group Recall Message]         |    🔴    |
 | Notice   | [Friend Recall Message]        |    🔴    |

@@ -1,13 +1,13 @@
+using ProtoBuf;
 using System.Reflection;
+using Lagrange.Core.Message.Entity;
+using Lagrange.Core.Utility.Extension;
+using Lagrange.Core.Utility.Generator;
 using Lagrange.Core.Internal.Packets.Message.C2C;
 using Lagrange.Core.Internal.Packets.Message.Component;
 using Lagrange.Core.Internal.Packets.Message.Component.Extra;
 using Lagrange.Core.Internal.Packets.Message.Element;
 using Lagrange.Core.Internal.Packets.Message.Routing;
-using ProtoBuf;
-using Lagrange.Core.Message.Entity;
-using Lagrange.Core.Utility.Extension;
-using Lagrange.Core.Utility.Generator;
 using ContentHead = Lagrange.Core.Internal.Packets.Message.ContentHead;
 using MessageBody = Lagrange.Core.Internal.Packets.Message.MessageBody;
 using MessageControl = Lagrange.Core.Internal.Packets.Message.MessageControl;
@@ -215,7 +215,7 @@ internal static class MessagePacker
     
     private static MessageChain ParseChain(PushMsgBody message)
     {
-        return message.ResponseHead.Grp == null
+        var chain = message.ResponseHead.Grp == null
             ? new MessageChain(
                 message.ResponseHead.FromUin,
                 message.ResponseHead.ToUid ?? string.Empty , 
@@ -227,5 +227,9 @@ internal static class MessagePacker
                 message.ResponseHead.FromUin, 
                 (uint)(message.ContentHead.Sequence ?? 0),
                 message.ContentHead.NewId ?? 0);
+
+        chain.Time = DateTimeOffset.FromUnixTimeSeconds(message.ContentHead.Timestamp ?? 0).DateTime;
+        
+        return chain;
     }
 }

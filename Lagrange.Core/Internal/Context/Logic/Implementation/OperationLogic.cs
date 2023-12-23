@@ -1,8 +1,8 @@
 using Lagrange.Core.Common.Entity;
 using Lagrange.Core.Internal.Context.Attributes;
-using Lagrange.Core.Internal.Event.Protocol.Action;
-using Lagrange.Core.Internal.Event.Protocol.Message;
-using Lagrange.Core.Internal.Event.Protocol.System;
+using Lagrange.Core.Internal.Event.Action;
+using Lagrange.Core.Internal.Event.Message;
+using Lagrange.Core.Internal.Event.System;
 using Lagrange.Core.Message;
 
 namespace Lagrange.Core.Internal.Context.Logic.Implementation;
@@ -163,6 +163,45 @@ internal class OperationLogic : LogicBase
         var recallMessageEvent = RecallGroupMessageEvent.Create(chain.GroupUin.Value, chain.Sequence);
         var events = await Collection.Business.SendEvent(recallMessageEvent);
         return events.Count != 0 && ((RecallGroupMessageEvent)events[0]).ResultCode == 0;
+    }
+
+    public async Task<List<BotGroupRequest>?> FetchRequests()
+    {
+        var fetchRequestsEvent = FetchRequestsEvent.Create();
+        var events = await Collection.Business.SendEvent(fetchRequestsEvent);
+        if (events.Count == 0) return null;
+
+        var resolved = ((FetchRequestsEvent)events[0]).Events;
+        var results = new List<BotGroupRequest>();
+
+        foreach (var result in resolved)
+        {
+            uint invitorUin = await ResolveUid(result.InvitorMemberUid);
+            uint targetUin = await ResolveUid(result.TargetMemberUid);
+            uint operatorUin = await ResolveUid(result.OperatorUid);
+            
+            results.Add(new BotGroupRequest(
+                result.GroupUin,
+                invitorUin,
+                result.InvitorMemberCard,
+                targetUin,
+                result.TargetMemberCard,
+                operatorUin,
+                result.OperatorName,
+                result.State,
+                result.Sequence));
+        }
+
+        return results;
+        
+        async Task<uint> ResolveUid(string? uid)
+        {
+            if (uid == null) return 0;
+            
+            var fetchUidEvent = FetchAvatarEvent.Create(uid);
+            var e = await Collection.Business.SendEvent(fetchUidEvent);
+            return e.Count == 0 ? 0 : ((FetchAvatarEvent)e[0]).Uin;
+        }
     }
 
     public async Task<bool> RequestFriend(uint targetUin, string message, string question)

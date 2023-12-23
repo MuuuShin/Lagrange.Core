@@ -1,9 +1,9 @@
+using Lagrange.Core.Event;
+using Lagrange.Core.Event.EventArg;
 using Lagrange.Core.Internal.Context.Attributes;
 using Lagrange.Core.Internal.Event;
-using Lagrange.Core.Internal.Event.EventArg;
-using Lagrange.Core.Internal.Event.Protocol;
-using Lagrange.Core.Internal.Event.Protocol.Message;
-using Lagrange.Core.Internal.Event.Protocol.Notify;
+using Lagrange.Core.Internal.Event.Message;
+using Lagrange.Core.Internal.Event.Notify;
 using Lagrange.Core.Internal.Service;
 using Lagrange.Core.Message;
 using Lagrange.Core.Message.Entity;
@@ -17,6 +17,8 @@ namespace Lagrange.Core.Internal.Context.Logic.Implementation;
 [EventSubscribe(typeof(GroupSysIncreaseEvent))]
 [EventSubscribe(typeof(GroupSysDecreaseEvent))]
 [EventSubscribe(typeof(FriendSysRequestEvent))]
+[EventSubscribe(typeof(GroupSysMuteEvent))]
+[EventSubscribe(typeof(GroupSysMemberMuteEvent))]
 [BusinessLogic("MessagingLogic", "Manage the receiving and sending of messages and notifications")]
 internal class MessagingLogic : LogicBase
 {
@@ -63,7 +65,7 @@ internal class MessagingLogic : LogicBase
                 uint memberUin = await Collection.Business.CachingLogic.ResolveUin(increase.GroupUin, increase.MemberUid, true) ?? 0;
                 uint? invitorUin = null;
                 if (increase.InvitorUid != null) invitorUin = await Collection.Business.CachingLogic.ResolveUin(increase.GroupUin, increase.InvitorUid);
-                var increaseArgs = new GroupMemberIncreaseEvent(increase.GroupUin, memberUin, invitorUin);
+                var increaseArgs = new GroupMemberIncreaseEvent(increase.GroupUin, memberUin, invitorUin, increase.Type);
                 Collection.Invoker.PostEvent(increaseArgs);
                 break;
             }
@@ -72,7 +74,7 @@ internal class MessagingLogic : LogicBase
                 uint memberUin = await Collection.Business.CachingLogic.ResolveUin(decrease.GroupUin, decrease.MemberUid) ?? 0;
                 uint? operatorUin = null;
                 if (decrease.OperatorUid != null) operatorUin = await Collection.Business.CachingLogic.ResolveUin(decrease.GroupUin, decrease.OperatorUid);
-                var decreaseArgs = new GroupMemberDecreaseEvent(decrease.GroupUin, memberUin, operatorUin);
+                var decreaseArgs = new GroupMemberDecreaseEvent(decrease.GroupUin, memberUin, operatorUin, decrease.Type);
                 Collection.Invoker.PostEvent(decreaseArgs);
                 break;
             }
@@ -80,6 +82,23 @@ internal class MessagingLogic : LogicBase
             {
                 var requestArgs = new FriendRequestEvent(info.SourceUin, info.Name, info.Message);
                 Collection.Invoker.PostEvent(requestArgs);
+                break;
+            }
+            case GroupSysMuteEvent groupMute:
+            {
+                uint? operatorUin = null;
+                if (groupMute.OperatorUid != null) operatorUin = await Collection.Business.CachingLogic.ResolveUin(groupMute.GroupUin, groupMute.OperatorUid);
+                var muteArgs = new GroupMuteEvent(groupMute.GroupUin, operatorUin, groupMute.IsMuted);
+                Collection.Invoker.PostEvent(muteArgs);
+                break;
+            }
+            case GroupSysMemberMuteEvent memberMute:
+            {
+                uint memberUin = await Collection.Business.CachingLogic.ResolveUin(memberMute.GroupUin, memberMute.TargetUid) ?? 0;
+                uint? operatorUin = null;
+                if (memberMute.OperatorUid != null) operatorUin = await Collection.Business.CachingLogic.ResolveUin(memberMute.GroupUin, memberMute.OperatorUid);
+                var muteArgs = new GroupMemberMuteEvent(memberMute.GroupUin, memberUin, operatorUin, memberMute.Duration);
+                Collection.Invoker.PostEvent(muteArgs);
                 break;
             }
         }
@@ -123,6 +142,20 @@ internal class MessagingLogic : LogicBase
             {
                 var result = (MultiMsgDownloadEvent)results[0];
                 multi.Chains.AddRange((IEnumerable<MessageChain>?)result.Chains ?? Array.Empty<MessageChain>());
+            }
+        }
+
+        foreach (var mention in chain.OfType<MentionEntity>())
+        {
+            if (chain is { IsGroup: true, GroupUin: not null })
+            {
+                var members = await Collection.Business.CachingLogic.GetCachedMembers(chain.GroupUin.Value, false);
+                mention.Name ??= members.FirstOrDefault(x => x.Uin == mention.Uin)?.MemberCard;
+            }
+            else
+            {
+                var friends = await Collection.Business.CachingLogic.GetCachedFriends(false);
+                mention.Name ??= friends.FirstOrDefault(x => x.Uin == mention.Uin)?.Nickname;
             }
         }
     }

@@ -1,7 +1,7 @@
 using Lagrange.Core.Common;
-using Lagrange.Core.Internal.Event.Protocol;
-using Lagrange.Core.Internal.Event.Protocol.Message;
-using Lagrange.Core.Internal.Event.Protocol.Notify;
+using Lagrange.Core.Internal.Event;
+using Lagrange.Core.Internal.Event.Message;
+using Lagrange.Core.Internal.Event.Notify;
 using Lagrange.Core.Internal.Packets.Message;
 using Lagrange.Core.Internal.Packets.Message.Notify;
 using Lagrange.Core.Message;
@@ -78,14 +78,14 @@ internal class PushMessageService : BaseService<PushMessageEvent>
             case PkgType.GroupMemberIncreaseNotice when message.Message.Body?.MsgContent is { } content:
             {
                 var increase = Serializer.Deserialize<GroupChange>(content.AsSpan());
-                var increaseEvent = GroupSysIncreaseEvent.Result(increase.GroupUin, increase.MemberUid, increase.OperatorUid);
+                var increaseEvent = GroupSysIncreaseEvent.Result(increase.GroupUin, increase.MemberUid, increase.OperatorUid, increase.IncreaseType);
                 extraEvents.Add(increaseEvent);
                 break;
             }
             case PkgType.GroupMemberDecreaseNotice when message.Message.Body?.MsgContent is { } content:
             {
                 var decrease = Serializer.Deserialize<GroupChange>(content.AsSpan());
-                var decreaseEvent = GroupSysDecreaseEvent.Result(decrease.GroupUin, decrease.MemberUid, decrease.OperatorUid);
+                var decreaseEvent = GroupSysDecreaseEvent.Result(decrease.GroupUin, decrease.MemberUid, decrease.OperatorUid, decrease.DecreaseType);
                 extraEvents.Add(decreaseEvent);
                 break;
             }
@@ -96,7 +96,7 @@ internal class PushMessageService : BaseService<PushMessageEvent>
             }
             case PkgType.Event0x2DC:
             {
-                ProcessEvent0x2DC(input, message);
+                ProcessEvent0x2DC(input, message, extraEvents);
                 break;
             }
             default:
@@ -108,7 +108,7 @@ internal class PushMessageService : BaseService<PushMessageEvent>
         return true;
     }
 
-    private static void ProcessEvent0x2DC(byte[] payload, PushMsg msg)
+    private static void ProcessEvent0x2DC(byte[] payload, PushMsg msg, List<ProtocolEvent> extraEvents)
     {
         var pkgType = (Event0x2DCSubType)(msg.Message.ContentHead.SubType ?? 0);
         switch (pkgType)
@@ -117,6 +117,21 @@ internal class PushMessageService : BaseService<PushMessageEvent>
             {
                 var subInfo = content[7..];
                 Console.WriteLine(subInfo.Hex());
+                break;
+            }
+            case Event0x2DCSubType.GroupMuteNotice when msg.Message.Body?.MsgContent is { } content:
+            {
+                var mute = Serializer.Deserialize<GroupMute>(content.AsSpan());
+                if (mute.Data.State.TargetUid == null)
+                {
+                    var groupMuteEvent = GroupSysMuteEvent.Result(mute.GroupUin, mute.OperatorUid, mute.Data.State.Duration == uint.MaxValue);
+                    extraEvents.Add(groupMuteEvent);
+                }
+                else
+                {
+                    var memberMuteEvent = GroupSysMemberMuteEvent.Result(mute.GroupUin, mute.OperatorUid, mute.Data.State.TargetUid, mute.Data.State.Duration);
+                    extraEvents.Add(memberMuteEvent);
+                }
                 break;
             }
             default:
@@ -167,7 +182,8 @@ internal class PushMessageService : BaseService<PushMessageEvent>
 
     private enum Event0x2DCSubType
     {
-        GroupRecallNotice = 17
+        GroupRecallNotice = 17,
+        GroupMuteNotice = 12
     }
     
     private enum Event0x210SubType

@@ -6,13 +6,14 @@ using Lagrange.Core.Utility.Extension;
 using Lagrange.Core.Utility.Sign;
 using Lagrange.OneBot.Core.Message;
 using Lagrange.OneBot.Core.Network;
+using Lagrange.OneBot.Core.Notify;
 using Lagrange.OneBot.Core.Operation;
 using Lagrange.OneBot.Utility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using LogLevel = Lagrange.Core.Internal.Event.EventArg.LogLevel;
+using LogLevel = Lagrange.Core.Event.EventArg.LogLevel;
 
 namespace Lagrange.OneBot;
 
@@ -51,7 +52,7 @@ public class LagrangeApp : IHost
 
         Instance.ContextCollection.Packet.SignProvider = Services.GetRequiredService<SignProvider>();
         if (!string.IsNullOrEmpty(Configuration["Account:Password"]))
-            Instance.ContextCollection.Keystore.PasswordMd5 = await Encoding.UTF8.GetBytes(Configuration["Account:Password"] ?? "").Md5Async() ;
+            Instance.ContextCollection.Keystore.PasswordMd5 = await Encoding.UTF8.GetBytes(Configuration["Account:Password"] ?? "").Md5Async();
 
         Instance.Invoker.OnBotLogEvent += (_, args) => Services.GetRequiredService<ILogger<BotContext>>().Log(args.Level switch
         {
@@ -71,6 +72,7 @@ public class LagrangeApp : IHost
             
             // Adapters should be started here instead of at the start of application
             await WebService.StartAsync(cancellationToken);
+            Services.GetRequiredService<NotifyService>().RegisterEvents();
             
             await File.WriteAllTextAsync(Configuration["ConfigPath:Keystore"] ?? "keystore.json", json, cancellationToken);
         };
@@ -90,15 +92,18 @@ public class LagrangeApp : IHost
         }
         else
         {
-            Instance.Invoker.OnBotCaptchaEvent += (_, args) =>
+            Instance.Invoker.OnBotCaptchaEvent += async (_, args) =>
             {
                 Logger.LogWarning($"Captcha: {args.Url}");
                 Logger.LogWarning("Please input ticket and randomString:");
-                
-                var ticket = Console.ReadLine();
-                var randomString = Console.ReadLine();
 
-                if (ticket != null && randomString != null) Instance.SubmitCaptcha(ticket, randomString);
+                await Task.Run(() =>
+                {
+                    var ticket = Console.ReadLine();
+                    var randomString = Console.ReadLine();
+
+                    if (ticket != null && randomString != null) Instance.SubmitCaptcha(ticket, randomString);
+                }, cancellationToken);
             };
             
             await Instance.LoginByPassword();
