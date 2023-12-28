@@ -204,6 +204,16 @@ internal class OperationLogic : LogicBase
         }
     }
 
+    public async Task<bool> GroupTransfer(uint groupUin, uint targetUin)
+    {
+        string? uid = await Collection.Business.CachingLogic.ResolveUid(groupUin, targetUin);
+        if (uid == null || Collection.Keystore.Uid is not { } source) return false;
+
+        var transferEvent = GroupTransferEvent.Create(groupUin, source, uid);
+        var results = await Collection.Business.SendEvent(transferEvent);
+        return results.Count != 0 && results[0].ResultCode == 0;
+    }
+
     public async Task<bool> RequestFriend(uint targetUin, string message, string question)
     {
         var requestFriendSearchEvent = RequestFriendSearchEvent.Create(targetUin);
@@ -219,12 +229,42 @@ internal class OperationLogic : LogicBase
         var events = await Collection.Business.SendEvent(requestFriendEvent);
         return events.Count != 0 && ((RequestFriendEvent)events[0]).ResultCode == 0;
     }
+
+    public async Task<bool> Like(uint targetUin)
+    {
+        var uid = await Collection.Business.CachingLogic.ResolveUid(null, targetUin);
+        if (uid == null) return false;
+
+        var friendLikeEvent = FriendLikeEvent.Create(uid);
+        var results = await Collection.Business.SendEvent(friendLikeEvent);
+        return results.Count != 0 && results[0].ResultCode == 0;
+    }
+
+    public async Task<bool> InviteGroup(uint groupUin, List<uint> invitedUins)
+    {
+        var invitedUids = new List<string>(invitedUins.Count);
+        foreach (uint uin in invitedUins)
+        {
+            string? uid = await Collection.Business.CachingLogic.ResolveUid(null, uin);
+            if (uid != null) invitedUids.Add(uid);
+        }
+
+        var @event = GroupInviteEvent.Create(groupUin, invitedUids);
+        var results = await Collection.Business.SendEvent(@event);
+        return results.Count != 0 && results[0].ResultCode == 0;
+    }
     
     public async Task<string?> GetClientKey()
     {
         var clientKeyEvent = FetchClientKeyEvent.Create();
         var events = await Collection.Business.SendEvent(clientKeyEvent);
-        if (events.Count == 0) return null;
-        return ((FetchClientKeyEvent)events[0]).ClientKey;
+        return events.Count == 0 ? null : ((FetchClientKeyEvent)events[0]).ClientKey;
+    }
+
+    public async Task<bool> GroupInvitationRequest(uint groupUin, ulong sequence, bool accept)
+    {
+        var inviteEvent = AcceptGroupRequestEvent.Create(accept, groupUin, sequence);
+        var results = await Collection.Business.SendEvent(inviteEvent);
+        return results.Count != 0 && results[0].ResultCode == 0;
     }
 }
